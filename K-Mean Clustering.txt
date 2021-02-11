@@ -1,0 +1,47 @@
+library(zipcode)
+library(ggplot2)
+library(dplyr)
+library(RColorBrewer)
+library(geosphere)
+options(scipen = F)
+set.seed(1033)
+ds<-read.csv(file="https://data.ny.gov/api/views/9a8c-vfzj/rows.csv?accessType=DOWNLOAD")
+
+
+#bring zip code data to get lat long info
+
+data(zipcode)
+zipcode$city2<-toupper(zipcode$city)
+ds$zip2<-clean.zipcodes(ds$Zip.Code)
+ds<-merge(ds,zipcode,by.x="zip2",by.y = "zip",all.x = T)
+
+#cluster analysis
+
+data.cl<-ds%>%select(x=longitude,y=latitude)
+data.cl<-data.cl[!is.na(data.cl$x)&!is.na(data.cl$y),]
+
+#baseline Plot
+
+ggplot(data.cl,aes(x=x,y=y))+geom_point()+theme_bw()+xlab("longitude")+ylab("latitude")
+
+#kmeans-TWO
+
+store.cl<-kmeans(data.cl,2)
+data.cl$clust<-store.cl$cluster
+centers<-data.frame(store.cl$centers)
+centers$clust<-1:nrow(centers)
+miles<-merge(data.cl,centers,by.x="clust",by.y="clust")
+mls<-c()
+for(i in 1:nrow(miles)){
+  mls.temp<-round(as.numeric(distm(c(miles$x.x[i],miles$y.x[i]),c(miles$y.x[i],miles$y.y[i]),fun=distHaversine)*0.000621371))
+  mls<-c(mls,mls.temp)
+}
+
+miles$miles<-mls
+mx.dist2<-max(miles$miles)
+tot.mls2<-sum(miles$miles,na.rm=T)
+
+
+#.plot it
+
+ggplot(data.cl,aes(x=x,y=y,colour=as.character(clust)))+geom_point()+geom_point(data=centers,shape=23,fill="darkred",color="darkred",size=5)+theme_bw()+scale_color_brewer(palette="Set1"
